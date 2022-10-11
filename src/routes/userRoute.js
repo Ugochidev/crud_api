@@ -8,5 +8,7 @@ router.post("/verify", controllers.verifyEmail);
 router.post("/login", controllers.login);
 router.get("/", auth.authenticate, auth.authorize, controllers.getAllUsers);
 router.get("/:id", auth.authenticate, auth.authorize, controllers.getAUser);
+router.patch("/:id", auth.authenticate, auth.authorize, controllers.updateUser);
+router.delete("/:id",auth.authenticate, auth.authorize, controllers.deleteUser);
 
 export default router;
