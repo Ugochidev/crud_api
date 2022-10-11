@@ -1,4 +1,4 @@
-const Joi = require("joi");
+import Joi from "joi";
 
 const validateSignUP = Joi.object({
   first_name: Joi.string().required(),
@@ -11,4 +11,9 @@ const validateSignUP = Joi.object({
   password: Joi.string().min(8).required(),
 });
 
-export default { validateSignUP };
+const validateSignIn = Joi.object({
+  email: Joi.string().email(),
+  password: Joi.string().min(8).required(),
+});
+
+export default { validateSignUP, validateSignIn };

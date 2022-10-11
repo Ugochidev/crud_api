@@ -1,14 +1,13 @@
-import db from "../database/db";
+import db from "../database/db.js";
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken"
-
-
+import jwt from "jsonwebtoken";
+import { validateSignUP, validateSignIn } from "../middleware/validate.middleware.js";
 
 const createUser = async (req, res, next) => {
   try {
     const { first_name, last_name, email, phone_number, password } = req.body;
     // validating reg.body with joi
-    await validiateUser.validateAsync(req.body);
+    await validateSignUP.validateAsync(req.body);
     // checking if a user already has an account
     const user = await db.execute(
       "SELECT `email` FROM `users` WHERE `email` = ?",
@@ -85,9 +84,7 @@ const verifyEmail = async (req, res, next) => {
     const verify = await db.execute(
       "UPDATE users SET is_verified = true WHERE is_verified = false"
     );
-    return res
-      .status(200)
-      .json({ message: "User verified successfully" });
+    return res.status(200).json({ message: "User verified successfully" });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -97,11 +94,11 @@ const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
     // validate with joi
-    await UserLogin.validateAsync(req.body);
+    await validateSignIn.validateAsync(req.body);
     //  checking email and password match
     if (email && password) {
       const user = await db.execute("SELECT * FROM users WHERE email =?", [
-      email,
+        email,
       ]);
       if (!user) {
         return res.status(400).json({
@@ -133,34 +130,27 @@ const login = async (req, res, next) => {
       token,
     });
   } catch (error) {
-    return res.status(500).json,({ message: error.message });
+    return res.status(500).json, { message: error.message };
   }
 };
 
-
 const getAllUsers = async (req, res, next) => {
   try {
-    const users = await db.query(
-      `SELECT * FROM users `
-    );
-    if (
-  !users
-    ) {
+    const users = await db.query(`SELECT * FROM users `);
+    if (!users) {
       return res.status(404).json({
         message: "Users not found",
       });
     }
-   
+
     return res.status(200).json({
       message: "Users fetch successfully",
-     users
-  
+      users,
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
 };
-
 
 const getAUser = async (req, res, next) => {
   try {
