@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import connection from "./database/db.js";
+import userRouter from "./routes/userRoute.js"
+
 
 const app = express();
 const port = process.env.PORT
@@ -14,6 +16,8 @@ app.get('/', (req, res) =>{
 })
 
 connection;
+
+app.use("/api/v1/users", userRouter);
 
 app.listen(port, () => {
 	console.log(`App listening on port: http://localhost:${port}`);
