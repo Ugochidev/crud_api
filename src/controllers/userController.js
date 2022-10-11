@@ -1,13 +1,13 @@
 import db from "../database/db.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { validateSignUP, validateSignIn } from "../middleware/validate.middleware.js";
+import validate from "../middleware/validate.middleware.js";
 
 const createUser = async (req, res, next) => {
   try {
     const { first_name, last_name, email, phone_number, password } = req.body;
     // validating reg.body with joi
-    await validateSignUP.validateAsync(req.body);
+    await validate.validateSignUP.validateAsync(req.body);
     // checking if a user already has an account
     const user = await db.execute(
       "SELECT `email` FROM `users` WHERE `email` = ?",
@@ -94,7 +94,7 @@ const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
     // validate with joi
-    await validateSignIn.validateAsync(req.body);
+    await validate.validateSignIn.validateAsync(req.body);
     //  checking email and password match
     if (email && password) {
       const user = await db.execute("SELECT * FROM users WHERE email =?", [
