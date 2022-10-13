@@ -28,4 +28,4 @@ const sendMail = async (config) => {
   }
 };
 
-module.exports = { sendMail };
+export default  { sendMail };

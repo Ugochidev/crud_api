@@ -1,244 +1,261 @@
+import { v4 } from "uuid";
 import db from "../database/db.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import validate from "../middleware/validate.middleware.js";
+import sendMail from "../../utils/sendMail.js";
 
-const createUser = async (req, res, next) => {
-	try {
-		const { first_name, last_name, email, phone_number, password } =
-			req.body;
-		// validating reg.body with joi
-		await validate.validateSignUP.validateAsync(req.body);
-		// checking if a user already has an account
-		const user = await db.execute(
-			"SELECT `email` FROM `users` WHERE `email` = ?",
-			[req.body.email]
-		);
-
-		if (user) {
-			return res.status(400).json({
-				message: "User already exist",
+const getAllUsers = (_, res) => {
+	db.query("SELECT * FROM users", (err, rows) => {
+		if (err) {
+			return res.status(500).json({
+				message: "An error occurred, please contact the system Admin",
 			});
 		}
-		//  hashing password
-		const hashPassword = await bcrypt.hash(password, 10);
-		const id = uuid.v4();
+		return res.status(200).json(rows);
+	});
+};
 
-		// creating a new user
-		const newUser = await db.execute(
-			"INSERT INTO users ( id, first_name, last_name, is_verified, role,  email, phone_number, password) VALUES ( ?, ?, ?, ?, ?, ?, ?, ?)",
-			[
-				id,
-				first_name,
-				last_name,
-				is_verified,
-				role,
-				email,
-				phone_number,
-				hashPassword,
-			]
-		);
+const createUser = async (req, res) => {
+	const { first_name, last_name, email, phone_number, password } = req.body;
+	const hashPassword = await bcrypt.hash(password, 10);
 
-		// creating a payload
-		const payload = {
-			id: newUser.id,
-			email: req.body.email,
-			role: req.body.role,
-			isVerified: req.body.isVerified,
-		};
-		const token = await jwt.sign(payload, process.env.SECRET, {
-			expiresIn: "2h",
-		});
+	// validating reg.body with joi
+	await validate.validateSignUP.validateAsync(req.body);
 
-		//  verifying email address with nodemailer
-		let mailOptions = {
-			to: newUser.email,
-			subject: "Verify Email",
-			text: `Hi ${firstName}, Pls verify your email.
-       ${token}`,
-		};
-		sendMail(mailOptions);
-		return res
-			.status(201)
-			.json({ message: "User created", newUser, token });
-	} catch (error) {
-		return res.status(500).json({ message: error.message });
-	}
+	// checking if a user already has an account
+	db.query(
+		"SELECT email FROM users WHERE email = ?",
+		[req.body.email],
+		(err, rows) => {
+			if (err) {
+				return res.status(500).json({
+					message:
+						"An error occurred, please contact the system Admin",
+				});
+			}
+
+			if (rows.length) {
+				return res.status(400).json({
+					message: "User already exist",
+				});
+			}
+
+			// creating a new user
+			const users = {
+				id: v4(),
+				first_name: first_name,
+				last_name: last_name,
+				email: email,
+				phone_number: phone_number,
+				password: hashPassword,
+			};
+			db.query(
+				"INSERT INTO users ( id, first_name, last_name, email, phone_number, password) VALUES ( ?, ?, ?, ?, ?, ?)",
+				[
+					users.id,
+					users.first_name,
+					users.last_name,
+					users.email,
+					users.phone_number,
+					users.password,
+				],
+				(err, rows) => {
+					if (err) {
+						console.log(err);
+						return res.status(500).json({
+							message:
+								"An error occurred, please contact the system Admin",
+						});
+					}
+					// creating a payload
+					const payload = {
+						id: users.id,
+						email: users.email,
+					};
+
+					const token = jwt.sign(payload, process.env.SECRET, {
+						expiresIn: "2h",
+					});
+					let mailOptions = {
+						to: users.email,
+						subject: "Verify Email",
+						text: `Hi ${first_name}, Please verify your email.
+		   ${token}`,
+					};
+					// sendMail(mailOptions);
+					return res
+						.status(201)
+						.json({ message: "User created", token: token });
+				}
+			);
+		}
+	);
 };
 
 // verifying Email
-
 const verifyEmail = async (req, res, next) => {
-	try {
-		const { token } = req.query;
-		const decodedToken = await jwt.verify(token, process.env.SECRET);
-		const user = await db.execute("SELECT * FROM users WHERE email = ?", [
+	const { token } = req.query;
+	const decodedToken = jwt.verify(token, process.env.SECRET);
+	db.query(
+		"SELECT * FROM users WHERE email = ?",
+		[
 			{
 				email: decodedToken.email,
 			},
-		]);
+		],
+		(err, rows) => {
+			if (err) {
+				return res.status(500).json({
+					message:
+						"An error occurred, please contact the system Admin",
+				});
+			}
 
-		if (user.is_verified) {
-			return successResMsg(res, 200, {
-				message: "user verified already",
-			});
-		}
-
-		const verify = await db.execute(
-			"UPDATE users SET is_verified = true WHERE is_verified = false"
-		);
-		return res.status(200).json({ message: "User verified successfully" });
-	} catch (error) {
-		return res.status(500).json({ message: error.message });
-	}
-};
-// logging in a user
-const login = async (req, res, next) => {
-	try {
-		const { email, password } = req.body;
-		// validate with joi
-		await validate.validateSignIn.validateAsync(req.body);
-		//  checking email and password match
-		if (email && password) {
-			const user = await db.execute(
-				"SELECT * FROM users WHERE email =?",
-				[email]
+			if (rows[0].is_verified) {
+				return res.status(200).json({
+					message: "user verified already",
+				});
+			}
+			db.query(
+				"UPDATE users SET is_verified = true WHERE is_verified = false"
 			);
-			if (!user) {
+			return res
+				.status(200)
+				.json({ message: "User verified successfully" });
+		}
+	);
+};
+
+// logging in a user
+const login = async (req, res) => {
+	const { email, password } = req.body;
+
+	// validate with joi
+	await validate.validateSignIn.validateAsync(req.body);
+
+	//  checking email and password match
+	if (email && password) {
+		db.query("SELECT * FROM users WHERE email =?", [email], (err, rows) => {
+			if (err) {
+				return res.status(500).json({
+					message:
+						"An error occurred, please contact the system Admin",
+				});
+			}
+			if (!rows.length) {
 				return res.status(400).json({
 					message: "email address not found.",
 				});
 			}
-			const passMatch = await bcrypt.compare(password, user.password);
+			const passMatch = bcrypt.compare(password, rows[0].password);
 			if (!passMatch) {
 				return res.status(400).json({ message: "incorrect details" });
 			}
-			if (!user.is_verified) {
+			if (!rows[0].is_verified) {
 				return res.status(400).json({
 					message: "Unverified account.",
 				});
 			}
-		}
-		// creating a payload
-		const payload = {
-			id: email.id,
-			email: email.email,
-			role: email.role,
-		};
 
-		const token = await jwt.sign(payload, process.env.SECRET_TOKEN, {
-			expiresIn: "1h",
+			// creating a payload
+			const payload = {
+				id: rows[0].id,
+				email: rows[0].email,
+				// role: email.role,
+			};
+
+			const token = jwt.sign(payload, process.env.SECRET_TOKEN, {
+				expiresIn: "1h",
+			});
+			return res.status(200).json({
+				message: "User logged in successfully",
+				token: token,
+			});
 		});
-		return res.status(200).json({
-			message: "User logged in successfully",
-			token,
-		});
-	} catch (error) {
-		return res.status(500).json, { message: error.message };
 	}
 };
 
-const getAllUsers = async (req, res, next) => {
-	try {
-		const users = await db.query(`SELECT * FROM users `);
-		if (!users) {
-			return res.status(404).json({
-				message: "Users not found",
+// Get User By ID
+const getAUser = (req, res, next) => {
+	const { id } = req.params;
+	db.query("SELECT * FROM users WHERE id = ?", [id], (err, rows) => {
+		if (err) {
+			return res.status(500).json({
+				message: "An error occurred, please contact the system Admin",
 			});
 		}
-
-		return res.status(200).json({
-			message: "Users fetch successfully",
-			users,
-		});
-	} catch (error) {
-		return res.status(500).json({ message: error.message });
-	}
-};
-
-const getAUser = async (req, res, next) => {
-	try {
-		const { id } = req.params;
-		const user = await db.query("SELECT * FROM users WHERE id =?", [id]);
-
-		if (!user) {
+		if (!rows.length) {
 			return res.status(404).json({
 				message: "User not found",
 			});
 		}
-
-		return res.status(200).json({
-			message: "Users fetch successfully",
-			user,
-		});
-	} catch (error) {
-		return res.status(500).json({ message: error.message });
-	}
+		return res.status(200).json(rows);
+	});
 };
 
-const updateUser = async (req, res, next) => {
-	try {
-		const { id } = req.params;
-		const { first_name, last_name, phone_number, password } = req.body;
-		const user = await db.query("SELECT * FROM users WHERE id =?", [id]);
-		if (!user) {
+// Update User By ID
+const updateUser = async (req, res) => {
+	const { id } = req.params;
+	const { first_name, last_name, phone_number, password } = req.body;
+	db.query("SELECT * FROM users WHERE id =?", [id], (err, rows) => {
+		if (err) {
+			return res.status(500).json({
+				message: "An error occurred, please contact the system Admin",
+			});
+		}
+		if (!rows.length) {
 			return res.status(404).json({
 				message: "User not found",
 			});
 		}
 		if (first_name) {
-			const updateFirstName = await pool.query(
-				"UPDATE users SET first_name WHERE id = ?",
-				[id]
-			);
-			user.rows[0].first_name = updateFirstName.rows[0].first_name;
+			db.query("UPDATE users SET first_name = ? WHERE id = ?", [
+				first_name,
+				id,
+			]);
 		}
 		if (last_name) {
-			const updateLastName = await pool.query(
-				"UPDATE users SET last_name WHERE id = ?",
-				[id]
-			);
-			user.rows[0].last_name = updateLastName.rows[0].last_name;
+			db.query("UPDATE users SET last_name WHERE id = ?", [id]);
 		}
 		if (phone_number) {
-			const updateNumber = await pool.query(
-				"UPDATE users SET phone_number WHERE id = ?",
-				[phone_number, id]
-			);
-			user.rows[0].phone_number = updateNumber.rows[0].phone_number;
+			db.query("UPDATE users SET phone_number WHERE id = ?", [
+				phone_number,
+				id,
+			]);
 		}
 		if (password) {
-			const hashPassword = await bcrypt.hash(password, 10);
-			const updatePassword = await pool.query(
-				"UPDATE users SET password WHERE id = ?",
-				[hashPassword, id]
-			);
-			user.rows[0].password = updatePassword.rows[0].password;
+			const hashPassword = bcrypt.hash(password, 10);
+			db.query("UPDATE users SET password WHERE id = ?", [
+				hashPassword,
+				id,
+			]);
 		}
 		return res.status(200).json({
-			data: user.rows[0],
+			message: "Update was successful",
 		});
-	} catch (error) {
-		return res.status(500).json({ message: error.message });
-	}
+	});
 };
 
-const deleteUser = async (req, res, next) => {
-	try {
-		const { id } = req.params;
-		const user = await db.query("SELECT * FROM users WHERE id =?", [id]);
-		if (!user) {
-			return res.status(404).json({
-				message: "User not found",
-			});
-		}
-		pool.query("DELETE FROM users WHERE id = ?", [id]);
-		return res.status(410).json({
-			message: "User successfully deleted",
+// Delete User By ID
+const deleteUser = async (req, res) => {
+	const { id } = req.params;
+	db.query("SELECT * FROM users WHERE id =?", [id], (err, rows) => {
+	if (err) {
+		return res.status(500).json({
+			message: "An error occurred, please contact the system Admin",
 		});
-	} catch (error) {
-		return res.status(500).json({ message: error.message });
 	}
+	if (!rows.length) {
+		return res.status(404).json({
+			message: "User not found",
+		});
+	}
+	db.query("DELETE FROM users WHERE id = ?", [id]);
+	return res.status(410).json({
+		message: "User successfully deleted",
+	});
+	});
 };
 
 export default {
@@ -248,5 +265,5 @@ export default {
 	getAllUsers,
 	getAUser,
 	updateUser,
-  deleteUser,
+	deleteUser,
 };
