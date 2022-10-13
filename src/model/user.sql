@@ -8,7 +8,6 @@ CREATE TABLE users
 	first_name VARCHAR(50),
 	last_name VARCHAR(50),
 	is_verified BOOLEAN DEFAULT FALSE,
-	role ENUM('Admin', 'User'),
 	email VARCHAR(100),
 	phone_number VARCHAR(15),
 	password VARCHAR(100)

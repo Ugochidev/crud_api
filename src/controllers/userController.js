@@ -6,14 +6,18 @@ import validate from "../middleware/validate.middleware.js";
 import sendMail from "../../utils/sendMail.js";
 
 const getAllUsers = (_, res) => {
-	db.query("SELECT * FROM users", (err, rows) => {
-		if (err) {
-			return res.status(500).json({
-				message: "An error occurred, please contact the system Admin",
-			});
+	db.query(
+		"SELECT id, first_name, last_name, phone_number FROM users",
+		(err, rows) => {
+			if (err) {
+				return res.status(500).json({
+					message:
+						"An error occurred, please contact the system Admin",
+				});
+			}
+			return res.status(200).json(rows);
 		}
-		return res.status(200).json(rows);
-	});
+	);
 };
 
 const createUser = async (req, res) => {
@@ -60,7 +64,7 @@ const createUser = async (req, res) => {
 					users.phone_number,
 					users.password,
 				],
-				(err, rows) => {
+				(err, _) => {
 					if (err) {
 						console.log(err);
 						return res.status(500).json({
@@ -136,7 +140,58 @@ const login = async (req, res) => {
 
 	//  checking email and password match
 	if (email && password) {
-		db.query("SELECT * FROM users WHERE email =?", [email], (err, rows) => {
+		db.query(
+			"SELECT id, email, password FROM users WHERE email =?",
+			[email],
+			(err, rows) => {
+				if (err) {
+					return res.status(500).json({
+						message:
+							"An error occurred, please contact the system Admin",
+					});
+				}
+				if (!rows.length) {
+					return res.status(400).json({
+						message: "email address not found.",
+					});
+				}
+				const passMatch = bcrypt.compare(password, rows[0].password);
+				if (!passMatch) {
+					return res
+						.status(400)
+						.json({ message: "incorrect details" });
+				}
+				if (!rows[0].is_verified) {
+					return res.status(400).json({
+						message: "Unverified account.",
+					});
+				}
+
+				// creating a payload
+				const payload = {
+					id: rows[0].id,
+					email: rows[0].email,
+				};
+
+				const token = jwt.sign(payload, process.env.SECRET_TOKEN, {
+					expiresIn: "1h",
+				});
+				return res.status(200).json({
+					message: "User logged in successfully",
+					token: token,
+				});
+			}
+		);
+	}
+};
+
+// Get User By ID
+const getAUser = (req, res) => {
+	const { id } = req.params;
+	db.query(
+		"SELECT id, first_name, last_name, phone_number FROM users WHERE id = ?",
+		[id],
+		(err, rows) => {
 			if (err) {
 				return res.status(500).json({
 					message:
@@ -144,61 +199,73 @@ const login = async (req, res) => {
 				});
 			}
 			if (!rows.length) {
-				return res.status(400).json({
-					message: "email address not found.",
+				return res.status(404).json({
+					message: "User not found",
 				});
 			}
-			const passMatch = bcrypt.compare(password, rows[0].password);
-			if (!passMatch) {
-				return res.status(400).json({ message: "incorrect details" });
+			if (rows[0].id !== req.userId) {
+				return res.status(403).json({ message: "Unauthorized" });
 			}
-			if (!rows[0].is_verified) {
-				return res.status(400).json({
-					message: "Unverified account.",
-				});
-			}
-
-			// creating a payload
-			const payload = {
-				id: rows[0].id,
-				email: rows[0].email,
-				// role: email.role,
-			};
-
-			const token = jwt.sign(payload, process.env.SECRET_TOKEN, {
-				expiresIn: "1h",
-			});
-			return res.status(200).json({
-				message: "User logged in successfully",
-				token: token,
-			});
-		});
-	}
-};
-
-// Get User By ID
-const getAUser = (req, res, next) => {
-	const { id } = req.params;
-	db.query("SELECT * FROM users WHERE id = ?", [id], (err, rows) => {
-		if (err) {
-			return res.status(500).json({
-				message: "An error occurred, please contact the system Admin",
-			});
+			return res.status(200).json(rows);
 		}
-		if (!rows.length) {
-			return res.status(404).json({
-				message: "User not found",
-			});
-		}
-		return res.status(200).json(rows);
-	});
+	);
 };
 
 // Update User By ID
 const updateUser = async (req, res) => {
 	const { id } = req.params;
 	const { first_name, last_name, phone_number, password } = req.body;
-	db.query("SELECT * FROM users WHERE id =?", [id], (err, rows) => {
+	db.query(
+		"SELECT id, first_name, last_name, phone_number, password FROM users WHERE id =?",
+		[id],
+		(err, rows) => {
+			if (err) {
+				return res.status(500).json({
+					message:
+						"An error occurred, please contact the system Admin",
+				});
+			}
+			if (!rows.length) {
+				return res.status(404).json({
+					message: "User not found",
+				});
+			}
+			if (rows[0].id !== req.userId) {
+				return res.status(403).json({ message: "Unauthorized" });
+			}
+			if (first_name) {
+				db.query("UPDATE users SET first_name = ? WHERE id = ?", [
+					first_name,
+					id,
+				]);
+			}
+			if (last_name) {
+				db.query("UPDATE users SET last_name WHERE id = ?", [id]);
+			}
+			if (phone_number) {
+				db.query("UPDATE users SET phone_number WHERE id = ?", [
+					phone_number,
+					id,
+				]);
+			}
+			if (password) {
+				const hashPassword = bcrypt.hash(password, 10);
+				db.query("UPDATE users SET password WHERE id = ?", [
+					hashPassword,
+					id,
+				]);
+			}
+			return res.status(200).json({
+				message: "Update was successful",
+			});
+		}
+	);
+};
+
+// Delete User By ID
+const deleteUser = async (req, res) => {
+	const { id } = req.params;
+	db.query("SELECT id, first_name FROM users WHERE id =?", [id], (err, rows) => {
 		if (err) {
 			return res.status(500).json({
 				message: "An error occurred, please contact the system Admin",
@@ -209,52 +276,13 @@ const updateUser = async (req, res) => {
 				message: "User not found",
 			});
 		}
-		if (first_name) {
-			db.query("UPDATE users SET first_name = ? WHERE id = ?", [
-				first_name,
-				id,
-			]);
+		if (rows[0].id !== req.userId) {
+			return res.status(403).json({ message: "Unauthorized" });
 		}
-		if (last_name) {
-			db.query("UPDATE users SET last_name WHERE id = ?", [id]);
-		}
-		if (phone_number) {
-			db.query("UPDATE users SET phone_number WHERE id = ?", [
-				phone_number,
-				id,
-			]);
-		}
-		if (password) {
-			const hashPassword = bcrypt.hash(password, 10);
-			db.query("UPDATE users SET password WHERE id = ?", [
-				hashPassword,
-				id,
-			]);
-		}
-		return res.status(200).json({
-			message: "Update was successful",
+		db.query("DELETE FROM users WHERE id = ?", [id]);
+		return res.status(410).json({
+			message: "User successfully deleted",
 		});
-	});
-};
-
-// Delete User By ID
-const deleteUser = async (req, res) => {
-	const { id } = req.params;
-	db.query("SELECT * FROM users WHERE id =?", [id], (err, rows) => {
-	if (err) {
-		return res.status(500).json({
-			message: "An error occurred, please contact the system Admin",
-		});
-	}
-	if (!rows.length) {
-		return res.status(404).json({
-			message: "User not found",
-		});
-	}
-	db.query("DELETE FROM users WHERE id = ?", [id]);
-	return res.status(410).json({
-		message: "User successfully deleted",
-	});
 	});
 };
 

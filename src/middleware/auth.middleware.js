@@ -6,36 +6,28 @@ const authenticate = async (req, res, next) => {
 	try {
 		const authorization = req.headers.authorization;
 		if (!authorization) {
-			return res.status(401).json({ message: "Token is required" });
+			return res.status(401).json({ message: "Access Denied" });
 		}
 		const authenticationArr = authorization.split(" ");
 		if (authenticationArr[0] !== "Bearer") {
-			return res.status(401).json({ message: "Bearer is required" });
+			return res.status(401).json({ message: "Access Denied" });
 		}
 		const token = authenticationArr[1];
 		if (!token) {
-			return res.status(401).json({ message: "Bearer is required" });
+			return res.status(401).json({ message: "Access Denied" });
 		}
-		const decryptToken = await Jwt.verify(token, process.env.SECRET, {
-			expiresIn: "10mins",
+		Jwt.verify(token, process.env.SECRET, (err, payload) => {
+			if (err) {
+				throw new AppException(400, "Bad Request");
+			} else {
+				req.userId = payload.id;
+			}
 		});
-		req.user = decryptToken;
+
 		next();
 	} catch (err) {
 		return res.status(500).json({ message: err.message });
 	}
 };
 
-const authorize = async (req, res, next) => {
-	try {
-		if (req.user.role == "Admin") {
-			next();
-		} else {
-			return res.status(401).json({ message: "User not allowed" });
-		}
-	} catch (err) {
-		return res.status(500).json({ message: err.message });
-	}
-};
-
-export default { authenticate, authorize };
+export default { authenticate };
