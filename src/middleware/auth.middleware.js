@@ -18,7 +18,7 @@ const authenticate = async (req, res, next) => {
 		}
 		Jwt.verify(token, process.env.SECRET, (err, payload) => {
 			if (err) {
-				throw new AppException(400, "Bad Request");
+				return res.status(400).json({message: "Bad Request"});
 			} else {
 				req.userId = payload.id;
 			}
