@@ -1,5 +1,5 @@
 -- DATABASE --
-CREATE DATABASE crud_app;
+CREATE DATABASE crud_api;
 
 -- USER TABLE --
 CREATE TABLE users
