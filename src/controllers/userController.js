@@ -3,7 +3,7 @@ import db from "../database/db.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import validate from "../middleware/validate.middleware.js";
-import smtp from "../../utils/sendMail.js";
+import smtp from "../utils/sendMail.js";
 import {
   allUsers,
   checkEmail,
@@ -14,7 +14,7 @@ import {
   removeUser,
   updateVerified,
   verifyMail,
-} from "../../utils/queries.js";
+} from "../utils/queries.js";
 
 // Fetch all Users
 const getAllUsers = (_, res) => {
