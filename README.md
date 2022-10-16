@@ -14,7 +14,7 @@ node app.js
 ```
 
 
-### More Info :info:
+### More Info :information_source:
 You can check out the full write-up on this application at [Abiodun's Blog](https://abiodun-shittu.hashnode.dev/building-a-crud-api-with-nodejs-and-mysql)
 
 
